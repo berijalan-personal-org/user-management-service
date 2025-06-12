@@ -8,6 +8,7 @@ import jakarta.persistence.GenerationType
 import jakarta.persistence.Id
 import jakarta.persistence.JoinColumn
 import jakarta.persistence.ManyToOne
+import jakarta.persistence.SequenceGenerator
 import jakarta.persistence.Table
 import org.hibernate.annotations.CreationTimestamp
 import org.hibernate.annotations.UpdateTimestamp
@@ -17,11 +18,19 @@ import java.sql.Timestamp
 @Table(name="mst_users")
 data class MasterUserEntity(
     @Id
-    @GeneratedValue(strategy = GenerationType.AUTO) //ada 5 tipe generation type
+    @GeneratedValue(
+        strategy = GenerationType.SEQUENCE,
+        generator = "mst_users_id_seq"
+    ) //ada 5 tipe generation type
     //identity = increment JPA
     //sequence = buat di postgree sequencenya
-    @Column(name="id") //disesuaikan dengan yang ada pada DB
-    var id: Int,
+    @SequenceGenerator(
+        name = "mst_users_id_seq",
+        sequenceName = "mst_users_id_seq",
+        allocationSize = 1
+    )
+    @Column(name="id", insertable = false, updatable = false) //disesuaikan dengan yang ada pada DB
+    var id: Int = 0,
 
     @Column(name="email")
     var email: String,

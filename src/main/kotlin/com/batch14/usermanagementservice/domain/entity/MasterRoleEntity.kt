@@ -5,6 +5,7 @@ import jakarta.persistence.Entity
 import jakarta.persistence.GeneratedValue
 import jakarta.persistence.GenerationType
 import jakarta.persistence.Id
+import jakarta.persistence.SequenceGenerator
 import jakarta.persistence.Table
 import org.hibernate.annotations.CreationTimestamp
 import org.hibernate.annotations.UpdateTimestamp
@@ -14,10 +15,18 @@ import java.sql.Timestamp
 @Table(name="mst_roles")
 data class MasterRoleEntity(
     @Id
-    @GeneratedValue(strategy = GenerationType.AUTO) //ada 5 tipe generation type
+    @GeneratedValue(
+        strategy = GenerationType.SEQUENCE,
+        generator = "mst_roles_id_seq"
+    ) //ada 5 tipe generation type
     //identity = increment JPA
     //sequence = buat di postgree sequencenya
-    @Column(name="id") //disesuaikan dengan yang ada pada DB
+    @SequenceGenerator(
+        name = "mst_roles_id_seq",
+        sequenceName = "mst_roles_id_seq",
+        allocationSize = 1
+    )
+    @Column(name="id", insertable = false, updatable = false) //disesuaikan dengan yang ada pada DB
     var id: Int,
 
     @Column(name="name")
