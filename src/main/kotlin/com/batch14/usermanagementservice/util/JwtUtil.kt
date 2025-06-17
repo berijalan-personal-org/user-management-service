@@ -19,7 +19,7 @@ class JwtUtil {
         try {
             val signatureAlgorithm = SignatureAlgorithm.HS256
             val signingKey = Keys.hmacShaKeyFor(SECRET_KEY.toByteArray())
-            val exp = Date(System.currentTimeMillis() + 900000L) //15 minutes
+            val exp = Date(System.currentTimeMillis() + 900000L) //15 minutes dihitung dalam milisecond
 
             return Jwts.builder()
                 .setSubject(id.toString())

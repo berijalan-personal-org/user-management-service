@@ -1,7 +1,9 @@
 package com.batch14.usermanagementservice.service.impl
 
+import com.batch14.usermanagementservice.domain.constant.Constant
 import com.batch14.usermanagementservice.domain.dto.request.ReqLoginDto
 import com.batch14.usermanagementservice.domain.dto.request.ReqRegisterUserDto
+import com.batch14.usermanagementservice.domain.dto.request.ReqUpdateUserDto
 import com.batch14.usermanagementservice.domain.dto.response.ResGetAllUserDto
 import com.batch14.usermanagementservice.domain.dto.response.ResLoginDto
 import com.batch14.usermanagementservice.domain.entity.MasterUserEntity
@@ -11,16 +13,20 @@ import com.batch14.usermanagementservice.repository.MasterUserRepository
 import com.batch14.usermanagementservice.service.MasterUserService
 import com.batch14.usermanagementservice.util.BCryptUtil
 import com.batch14.usermanagementservice.util.JwtUtil
+import jakarta.servlet.http.HttpServletRequest
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import java.util.Optional
 
+
+// service untuk handling exception, jangan di controller
 @Service
 class MasterUserServiceImpl(
     private val masterUserRepository: MasterUserRepository,
     private val masterRoleRepository: MasterRoleRepository,
     private val bCrypt: BCryptUtil,
-    private val jwtUtil: JwtUtil
+    private val jwtUtil: JwtUtil,
+    private val httpServletRequest: HttpServletRequest
 ): MasterUserService{
     override fun findAllActiveUsers(): List<ResGetAllUserDto> {
         val rawData = masterUserRepository.getAllActiveUser()
@@ -45,6 +51,13 @@ class MasterUserServiceImpl(
 
     override fun findUserById(id: Int): ResGetAllUserDto? {
         val user = masterUserRepository.getUserById(id)
+        if (user == null) {
+            throw CustomException(
+                "User dengan id $id tidak ditemukan",
+                HttpStatus.NOT_FOUND.value(),
+            )
+        }
+
         return user?.let {
             ResGetAllUserDto(
                 username = it.username,
@@ -79,10 +92,11 @@ class MasterUserServiceImpl(
             )
         }
 
+        val hashedPassword = bCrypt.hash(reqRegisterUserDto.password)
         val userRaw = MasterUserEntity(
             email = reqRegisterUserDto.email,
             username = reqRegisterUserDto.username,
-            password = reqRegisterUserDto.password,
+            password = hashedPassword,
             role = if (role.isPresent) {
                 role.get()
             } else {
@@ -123,7 +137,63 @@ class MasterUserServiceImpl(
         } else {
             "user"
         }
+
         val token = jwtUtil.generateToken(userEntity.id, role)
         return ResLoginDto(token)
     }
+
+    override fun updateUser(reqUpdateUserDto: ReqUpdateUserDto): ResGetAllUserDto {
+        val userId = httpServletRequest.getHeader(Constant.HEADER_USER_ID)
+
+        // pakai or else throw untuk convert user yg tidak optional sehingga bisa langsung user.email
+        val user = masterUserRepository.findById(userId.toInt()).orElseThrow {
+            CustomException(
+                "User dengan id $userId tidak ditemukan",
+                HttpStatus.NOT_FOUND.value(),
+            )
+        }
+//        if (user.isEmpty) {
+//            throw CustomException(
+//                "User dengan id $userId tidak ditemukan",
+//                HttpStatus.NOT_FOUND.value(),
+//            )
+//        }
+
+        var existingUser = masterUserRepository.findOneByUsername(reqUpdateUserDto.username)
+        if (existingUser.isPresent) {
+            if (existingUser.get().id != userId.toInt()) {
+                throw CustomException(
+                    "Username ${reqUpdateUserDto.username} sudah terdaftar",
+                    HttpStatus.BAD_REQUEST.value(),
+                )
+            }
+        }
+
+        var existingEmail = masterUserRepository.findOneByEmail(reqUpdateUserDto.email)
+        if (existingEmail != null) {
+            if (existingEmail.id != userId.toInt()) {
+                throw CustomException(
+                    "Email ${reqUpdateUserDto.email} sudah terdaftar",
+                    HttpStatus.BAD_REQUEST.value(),
+                )
+            }
+        }
+
+        //?????????????
+        user.email = reqUpdateUserDto.email.toString()
+        user.username = reqUpdateUserDto.username.toString()
+        user.updatedBy = userId
+
+        val updatedUser = masterUserRepository.save(user)
+
+        return ResGetAllUserDto(
+            username = updatedUser.username,
+            id = updatedUser.id,
+            email = updatedUser.email,
+            roleId = updatedUser.role?.id,
+            roleName = updatedUser.role?.name
+        )
+    }
+
+
 }
