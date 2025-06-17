@@ -14,6 +14,8 @@ import com.batch14.usermanagementservice.service.MasterUserService
 import com.batch14.usermanagementservice.util.BCryptUtil
 import com.batch14.usermanagementservice.util.JwtUtil
 import jakarta.servlet.http.HttpServletRequest
+import org.springframework.cache.annotation.CacheEvict
+import org.springframework.cache.annotation.Cacheable
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import java.util.Optional
@@ -49,6 +51,12 @@ class MasterUserServiceImpl(
         return result
     }
 
+    //kalau data belum ada, maka akan dibuat di redis
+    //jika data ada, maka akan diambil dari redis
+    @Cacheable(
+        "getUserById",
+        key = "{#id}"
+    )
     override fun findUserById(id: Int): ResGetAllUserDto? {
         val user = masterUserRepository.getUserById(id)
         if (user == null) {
@@ -142,7 +150,16 @@ class MasterUserServiceImpl(
         return ResLoginDto(token)
     }
 
-    override fun updateUser(reqUpdateUserDto: ReqUpdateUserDto): ResGetAllUserDto {
+    //delete cache
+    @CacheEvict(
+        value = ["getUserById", "getAllActiveUser"], //menghapus semua cache tidak peduli cache
+        key = "{#userId}",
+        allEntries = true
+    )
+    override fun updateUser(
+        reqUpdateUserDto: ReqUpdateUserDto,
+        id: Int
+    ): ResGetAllUserDto {
         val userId = httpServletRequest.getHeader(Constant.HEADER_USER_ID)
 
         // pakai or else throw untuk convert user yg tidak optional sehingga bisa langsung user.email
@@ -152,12 +169,6 @@ class MasterUserServiceImpl(
                 HttpStatus.NOT_FOUND.value(),
             )
         }
-//        if (user.isEmpty) {
-//            throw CustomException(
-//                "User dengan id $userId tidak ditemukan",
-//                HttpStatus.NOT_FOUND.value(),
-//            )
-//        }
 
         var existingUser = masterUserRepository.findOneByUsername(reqUpdateUserDto.username)
         if (existingUser.isPresent) {
@@ -179,10 +190,9 @@ class MasterUserServiceImpl(
             }
         }
 
-        //?????????????
         user.email = reqUpdateUserDto.email.toString()
         user.username = reqUpdateUserDto.username.toString()
-        user.updatedBy = userId
+        user.updatedBy = userId.toInt()
 
         val updatedUser = masterUserRepository.save(user)
 
@@ -193,6 +203,50 @@ class MasterUserServiceImpl(
             roleId = updatedUser.role?.id,
             roleName = updatedUser.role?.name
         )
+    }
+
+    override fun softDelete(id: Int) {
+        val idDeletedBy = httpServletRequest.getHeader(Constant.HEADER_USER_ID)
+        println(idDeletedBy)
+        val actor = masterUserRepository.findById(idDeletedBy.toInt()).orElseThrow {
+            CustomException(
+                "User dengan id $idDeletedBy tidak ditemukan",
+                HttpStatus.NOT_FOUND.value(),
+            )
+        }
+        val user = masterUserRepository.findById(id).orElseThrow(){
+            CustomException(
+                "User dengan id $id tidak ditemukan",
+                HttpStatus.NOT_FOUND.value(),
+            )
+        }
+        user.deletedBy = actor.id
+        user.isDelete = true
+        masterUserRepository.save(user)
+    }
+
+    override fun hardDelete(id: Int) {
+        val id_deletedBy = httpServletRequest.getHeader(Constant.HEADER_USER_ID)
+        val actor = masterUserRepository.findById(id_deletedBy.toInt()).orElseThrow {
+            CustomException(
+                "User dengan id $id_deletedBy tidak ditemukan",
+                HttpStatus.NOT_FOUND.value(),
+            )
+        }
+        println(actor.role?.name)
+        if(actor.role?.name != "admin") {
+            throw CustomException(
+                "Hanya admin yang dapat melakukan hard delete",
+                HttpStatus.FORBIDDEN.value(),
+            )
+        }
+        val user = masterUserRepository.findById(id).orElseThrow(){
+            CustomException(
+                "User dengan id $id tidak ditemukan",
+                HttpStatus.NOT_FOUND.value(),
+            )
+        }
+        masterUserRepository.deleteById(user.id)
     }
 
 

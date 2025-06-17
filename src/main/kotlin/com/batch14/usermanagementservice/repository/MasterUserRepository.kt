@@ -25,4 +25,5 @@ interface MasterUserRepository: JpaRepository<MasterUserEntity, Int> {
     fun getUserById(@Param("id") id: Int): MasterUserEntity?
     fun findOneByEmail(email: String?): MasterUserEntity?
     fun findOneByUsername(username: String?): Optional<MasterUserEntity>
+
 }

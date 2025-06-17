@@ -50,20 +50,21 @@ data class MasterUserEntity(
     var createdAt: Timestamp? = null,
 
     @Column(name="created_by")
-    var createdBy: String? = null,
+    var createdBy: Int? = null,
 
     @UpdateTimestamp
     @Column(name="updated_at", insertable = false, updatable = false) //karena current jadi false saja
     var updatedAt: Timestamp? = null,
 
     @Column(name="updated_by")
-    var updatedBy: String? = null,
+    var updatedBy: Int? = null,
 
+    @UpdateTimestamp
     @Column(name="deleted_at", insertable = false, updatable = false) //karena current jadi false saja
     var deletedAt: Timestamp? = null,
 
     @Column(name="deleted_by")
-    var deletedBy: String? = null,
+    var deletedBy: Int? = null,
 
     @Column(name="is_active")
     var isActive: Boolean = true,
