@@ -10,8 +10,10 @@ interface MasterUserService {
     fun findAllActiveUsers(): List<ResGetAllUserDto>
     fun findUserById(id: Int): ResGetAllUserDto?
     fun registerUser(reqRegisterUserDto: ReqRegisterUserDto): ResGetAllUserDto
+    fun validateOtp(username: String, otp: String): ResLoginDto
     fun login(req: ReqLoginDto): ResLoginDto
     fun updateUser(reqUpdateUserDto: ReqUpdateUserDto, id: Int): ResGetAllUserDto
     fun softDelete(id: Int)
     fun hardDelete(id: Int)
+    fun findAllUsersByIds(ids: List<Int>): List<ResGetAllUserDto>
 }

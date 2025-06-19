@@ -2,6 +2,7 @@ package com.batch14.usermanagementservice.controller
 
 import com.batch14.usermanagementservice.domain.constant.Constant
 import com.batch14.usermanagementservice.domain.dto.request.ReqLoginDto
+import com.batch14.usermanagementservice.domain.dto.request.ReqOtpUserDto
 import com.batch14.usermanagementservice.domain.dto.request.ReqRegisterUserDto
 import com.batch14.usermanagementservice.domain.dto.request.ReqUpdateUserDto
 import com.batch14.usermanagementservice.domain.dto.response.BaseResponse
@@ -21,6 +22,7 @@ import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.PutMapping
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
+import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
 
 @RestController
@@ -71,10 +73,15 @@ class UserController (
         return ResponseEntity(
             BaseResponse(
                 data = masterUserService.login(req),
-                message = "Login Berhasil"
+                message = "Silahkan verifikasi OTP"
             ),
             HttpStatus.OK
         )
+    }
+
+    @PostMapping("/verify-otp")
+    fun verifyOtp(@RequestBody req: ReqOtpUserDto): ResponseEntity<ResLoginDto> {
+        return ResponseEntity.ok(masterUserService.validateOtp(req.username, req.otp))
     }
 
     @PutMapping

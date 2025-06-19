@@ -11,14 +11,18 @@ import com.batch14.usermanagementservice.exceptions.CustomException
 import com.batch14.usermanagementservice.repository.MasterRoleRepository
 import com.batch14.usermanagementservice.repository.MasterUserRepository
 import com.batch14.usermanagementservice.service.MasterUserService
+import com.batch14.usermanagementservice.service.OtpCacheService
+import com.batch14.usermanagementservice.service.RedisService
 import com.batch14.usermanagementservice.util.BCryptUtil
 import com.batch14.usermanagementservice.util.JwtUtil
 import jakarta.servlet.http.HttpServletRequest
 import org.springframework.cache.annotation.CacheEvict
+import org.springframework.cache.annotation.CachePut
 import org.springframework.cache.annotation.Cacheable
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import java.util.Optional
+import kotlin.random.Random
 
 
 // service untuk handling exception, jangan di controller
@@ -28,7 +32,8 @@ class MasterUserServiceImpl(
     private val masterRoleRepository: MasterRoleRepository,
     private val bCrypt: BCryptUtil,
     private val jwtUtil: JwtUtil,
-    private val httpServletRequest: HttpServletRequest
+    private val httpServletRequest: HttpServletRequest,
+    private val otpCacheService: OtpCacheService
 ): MasterUserService{
     override fun findAllActiveUsers(): List<ResGetAllUserDto> {
         val rawData = masterUserRepository.getAllActiveUser()
@@ -122,33 +127,47 @@ class MasterUserServiceImpl(
         )
     }
 
-    override fun login(req: ReqLoginDto): ResLoginDto {
-        val userEntityOpt = masterUserRepository.findOneByUsername(req.username)
-        if (userEntityOpt.isEmpty) {
-            throw CustomException(
-                "Username atau password salah",
-                HttpStatus.NOT_FOUND.value(),
-            )
+    override fun validateOtp(username: String, otp: String): ResLoginDto {
+        val user = masterUserRepository.findOneByUsername(username)
+            .orElseThrow {
+                CustomException("Username atau password salah", HttpStatus.NOT_FOUND.value())
+            }
+
+        //val cachedOtp = redisService.getOtp(username)
+        val cachedOtp = otpCacheService.getCachedOtp(username)
+        println(cachedOtp)
+        if (cachedOtp != otp) {
+            throw CustomException("OTP tidak valid atau sudah kedaluwarsa", HttpStatus.UNAUTHORIZED.value())
         }
 
-        val userEntity = userEntityOpt.get()
-
-        if (!bCrypt.verify(req.password, userEntity.password)) {
-            throw CustomException(
-                "Username atau password salah",
-                HttpStatus.NOT_FOUND.value(),
-            )
-        }
-
-        val role = if (userEntity.role != null) {
-            userEntity.role!!.name
-        } else {
-            "user"
-        }
-
-        val token = jwtUtil.generateToken(userEntity.id, role)
-        return ResLoginDto(token)
+        val token = jwtUtil.generateToken(user.id, user.role?.name ?: "user")
+        otpCacheService.evictOtp(username)
+        return ResLoginDto(
+            token = token,
+            otp = otp
+        )
     }
+
+    override fun login(req: ReqLoginDto): ResLoginDto {
+        val user = masterUserRepository.findOneByUsername(req.username)
+            .orElseThrow {
+                CustomException("Username atau password salah", HttpStatus.NOT_FOUND.value())
+            }
+
+        if (!bCrypt.verify(req.password, user.password)) {
+            throw CustomException("Username atau password salah", HttpStatus.NOT_FOUND.value())
+        }
+
+        //val otp = redisService.generateOtp(user.username)
+        val otp = Random.nextInt(100000, 999999).toString()
+        otpCacheService.cacheOtp(user.username, otp)
+
+        return ResLoginDto(
+            otp = otp,
+            token = null
+        )
+    }
+
 
     //delete cache
     @CacheEvict(
@@ -249,5 +268,15 @@ class MasterUserServiceImpl(
         masterUserRepository.deleteById(user.id)
     }
 
-
+    override fun findAllUsersByIds(ids: List<Int>): List<ResGetAllUserDto> {
+        val users = masterUserRepository.findAllUsersByIds(ids)
+        return users.map {
+            ResGetAllUserDto(
+                username = it.username,
+                id = it.id,
+                email = it.email,
+                roleId = it.role?.id
+            )
+        }
+    }
 }
